@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--namespace必须是接口的全类名 -->
+<mapper namespace="com.zhicheng.ssosys.mapper.CommonBusinessMapper">
+
+    <!--  查询条件 视图-->
+    <select id="listWhereVUserRole"   resultType="VUserRole" >
+        SELECT * FROM v_user_role
+        <if test="ew.sqlSegment!=null">
+            where ${ew.sqlSegment}
+        </if>
+    </select>
+    <!--  查询条件 视图 -->
+    <select id="listWhereVPermission"   resultType="VPermission" >
+        SELECT * FROM v_permission
+        <if test="ew.sqlSegment!=null">
+            where ${ew.sqlSegment}
+        </if>
+    </select>
+
+</mapper>

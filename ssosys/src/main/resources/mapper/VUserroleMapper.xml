@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="jifan.ssosys.mapper.VUserroleMapper">
+    <!-- 条件查 list item  v_userrole-->
+    <select id="listwhere" resultType="VUserrole" >
+        select * from v_userrole where  ${whereStr}
+    </select>
+</mapper>
+

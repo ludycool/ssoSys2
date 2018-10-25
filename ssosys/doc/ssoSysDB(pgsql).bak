@@ -1,0 +1,3176 @@
+--
+-- PostgreSQL database dump
+--
+
+-- Dumped from database version 9.6.2
+-- Dumped by pg_dump version 9.6.2
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: plpgsql; Type: EXTENSION; Schema: -; Owner: 
+--
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
+
+--
+-- Name: EXTENSION plpgsql; Type: COMMENT; Schema: -; Owner: 
+--
+
+COMMENT ON EXTENSION plpgsql IS 'PL/pgSQL procedural language';
+
+
+SET search_path = public, pg_catalog;
+
+--
+-- Name: sp_PaginationEx(character varying, bigint, bigint, bigint, bigint); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION "sp_PaginationEx"(kw character varying, querycate bigint, flg bigint, lmt bigint, intpg bigint) RETURNS SETOF record
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $_$DECLARE
+kw alias for $1;--关键词
+querycate alias for $2;--查询的部门
+flg alias for $3;--0表示按关键字查询,1表示非关键词查询,2表示默认查询
+lmt alias for $4;--每页显示记录数
+page alias for $5;--待显示页码
+recs record;--返回的集合
+rowcount integer;--记录总数
+pagecount integer;--总页数
+intpg integer;--当前页数
+pagerecs record;--统计页面的记录集合
+BEGIN
+rowcount:=0;
+pagecount:=0;
+intpg:=page;
+--根据flg开判断查询类型：
+IF flg = 0 THEN
+RAISE NOTICE 'select by keyword %',$1;
+--采用关键字来查询：
+--统计总记录数:
+--select from government_info
+select into rowcount count(*)as n from government_info WHERE title LIKE '%'||kw||'%';
+pagecount:=(rowcount+lmt-1)/lmt;
+IF intpg>pagecount THEN
+intpg=pagecount;
+END IF;
+FOR recs IN SELECT info_id,title,title as classname,input_time,columnid,0 as rc,0 as pc FROM government_info WHERE title LIKE '%'||kw||'%' LIMIT lmt OFFSET (intpg-1)*lmt LOOP
+recs.classname='';
+recs.rc=rowcount;
+recs.pc=pagecount;
+--根据columnid来查询classname<开始>
+DECLARE
+cs record;
+BEGIN
+select into cs * from column_structure where classid=recs.columnid;
+if not found then
+else
+recs.classname=cs.classname;
+end if;
+END;
+--根据columnid查询<结束>
+raise notice '%',recs.classname;
+return next recs;--返回数据集
+END LOOP;
+ELSEIF flg = 2 THEN
+RAISE NOTICE 'SELECT BY DEFAULT';
+--统计总记录数:
+--select from government_info
+select into rowcount count(*)as n from government_info;
+pagecount:=(rowcount+lmt-1)/lmt;
+IF intpg>pagecount THEN
+intpg=pagecount;
+END IF;
+--默认查询<开始>
+FOR recs IN select info_id,title,title as classname,input_time,columnid,0 as rc,0 as pc from government_info order by input_time desc LIMIT lmt OFFSET (intpg-1)*lmt LOOP
+recs.classname='';
+recs.rc=rowcount;
+recs.pc=pagecount;
+--根据columnid来查询classname<开始>
+DECLARE
+cs record;
+BEGIN
+select into cs * from column_structure where classid=recs.columnid;
+if not found then
+else
+recs.classname=cs.classname;
+end if;
+END;
+--根据columnid查询<结束>
+return next recs;--返回数据集
+END LOOP;
+raise notice '%',recs.classname;
+--默认查询<结束>
+ELSE
+RAISE NOTICE 'select by departmen %',$2;
+--根据所选部门查询<开始>
+--判断parentid<开始>
+DECLARE
+--parentid integer;--上级ID
+cs record;--从column_structure中查找parentid
+BEGIN
+SELECT INTO cs *FROM column_structure WHERE classid=querycate;
+IF FOUND THEN
+RAISE NOTICE 'I found the classid %',querycate;
+IF cs.parentid=0 THEN
+raise notice 'The cs parentid==0';
+--统计总记录数:
+--select from government_info
+select into rowcount count(*)as n from government_info where parentid=querycate;
+pagecount:=(rowcount+lmt-1)/lmt;
+IF intpg>pagecount THEN
+intpg=pagecount;
+END IF;
+for recs in select info_id,title,title as classname,input_time,columnid,0 as rc,0 as pc from government_info where parentid=querycate order by input_time desc LIMIT lmt OFFSET (intpg-1)*lmt loop
+recs.classname='';
+recs.rc=rowcount;
+recs.pc=pagecount;
+--根据columnid来查询classname<开始>
+DECLARE
+cs record;
+BEGIN
+select into cs * from column_structure where classid=recs.columnid;
+if not found then
+else
+recs.classname=cs.classname;
+end if;
+END;
+--根据columnid查询<结束>*/
+return next recs;--返回数据集
+end loop;
+ELSE
+raise notice 'The cs parentid not 0';
+--统计总记录数:
+--select from government_info
+select into rowcount count(*)as n from government_info where columnid in (select classid from column_structure where parentpath like '%,'||querycate||',%' or parentid=querycate or classid=querycate);
+pagecount:=(rowcount+lmt-1)/lmt;
+IF intpg>pagecount THEN
+intpg=pagecount;
+END IF;
+for recs in select info_id,title,title as classname,input_time,columnid,0 as rc,0 as pc from government_info where columnid in (select classid from column_structure where parentpath like '%,'||querycate||',%' or parentid=querycate or classid=querycate) order by input_time desc LIMIT lmt OFFSET (intpg-1)*lmt loop
+recs.classname='';
+recs.rc=rowcount;
+recs.pc=pagecount;
+--根据columnid来查询classname<开始>
+DECLARE
+cs record;
+BEGIN
+select into cs * from column_structure where classid=recs.columnid;
+if not found then
+else
+recs.classname=cs.classname;
+end if;
+END;
+--根据columnid查询<结束>*/
+--raise notice 'title:%',recs.title;
+return next recs;--返回数据集
+end loop;
+END IF;--Parentid=0的判断
+END IF;--FOUND
+END;
+--判断parentid<结束>
+--根据所选部门查询<结束>
+END IF;
+RAISE NOTICE 'rowcount:%,pagecount:%',rowcount,pagecount;
+return;--默认为空
+END;$_$;
+
+
+ALTER FUNCTION public."sp_PaginationEx"(kw character varying, querycate bigint, flg bigint, lmt bigint, intpg bigint) OWNER TO postgres;
+
+--
+-- Name: rms_buttons_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_buttons_id_seq
+    START WITH 10
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_buttons_id_seq OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_with_oids = false;
+
+--
+-- Name: rms_buttons; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_buttons (
+    id integer DEFAULT nextval('rms_buttons_id_seq'::regclass) NOT NULL,
+    orderno integer,
+    buttonname character varying(20),
+    valuename character varying(200),
+    icon character varying(40),
+    functionname character varying(20),
+    remarks character varying(200),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    color character varying(20)
+);
+
+
+ALTER TABLE rms_buttons OWNER TO postgres;
+
+--
+-- Name: TABLE rms_buttons; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_buttons IS 'RMS_Buttons按钮';
+
+
+--
+-- Name: COLUMN rms_buttons.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_buttons.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.orderno IS '排序';
+
+
+--
+-- Name: COLUMN rms_buttons.buttonname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.buttonname IS '名称';
+
+
+--
+-- Name: COLUMN rms_buttons.valuename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.valuename IS '值';
+
+
+--
+-- Name: COLUMN rms_buttons.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.icon IS '图标';
+
+
+--
+-- Name: COLUMN rms_buttons.functionname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.functionname IS '方法名';
+
+
+--
+-- Name: COLUMN rms_buttons.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_buttons.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_buttons.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_buttons.modifytime IS '更新时间';
+
+
+--
+-- Name: rms_company_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_company_id_seq
+    START WITH 3
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_company_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_company; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_company (
+    id integer DEFAULT nextval('rms_company_id_seq'::regclass) NOT NULL,
+    orderno integer,
+    name character varying(20),
+    remarks character varying(200),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE rms_company OWNER TO postgres;
+
+--
+-- Name: TABLE rms_company; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_company IS '公司';
+
+
+--
+-- Name: COLUMN rms_company.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_company.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.orderno IS '排序';
+
+
+--
+-- Name: COLUMN rms_company.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.name IS '名称';
+
+
+--
+-- Name: COLUMN rms_company.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_company.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_company.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.modifytime IS '更新时间';
+
+
+--
+-- Name: COLUMN rms_company.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN rms_company.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_company.isdeleted IS '是否删除';
+
+
+--
+-- Name: rms_department_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_department_id_seq
+    START WITH 6
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_department_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_department; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_department (
+    id integer DEFAULT nextval('rms_department_id_seq'::regclass) NOT NULL,
+    parentid integer,
+    orderno integer,
+    name character varying(20),
+    icon character varying(20),
+    remarks character varying(200),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    companyid integer,
+    level smallint
+);
+
+
+ALTER TABLE rms_department OWNER TO postgres;
+
+--
+-- Name: TABLE rms_department; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_department IS 'RMS_Department部门';
+
+
+--
+-- Name: COLUMN rms_department.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_department.parentid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.parentid IS '上级Id';
+
+
+--
+-- Name: COLUMN rms_department.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.orderno IS '排序';
+
+
+--
+-- Name: COLUMN rms_department.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.name IS '名称';
+
+
+--
+-- Name: COLUMN rms_department.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.icon IS '图标';
+
+
+--
+-- Name: COLUMN rms_department.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_department.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_department.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.modifytime IS '更新时间';
+
+
+--
+-- Name: COLUMN rms_department.companyid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_department.companyid IS '公司id';
+
+
+--
+-- Name: rms_menubuttons_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_menubuttons_id_seq
+    START WITH 129
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_menubuttons_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_menubuttons; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_menubuttons (
+    id integer DEFAULT nextval('rms_menubuttons_id_seq'::regclass) NOT NULL,
+    buttonid integer,
+    manuid integer,
+    orderno integer
+);
+
+
+ALTER TABLE rms_menubuttons OWNER TO postgres;
+
+--
+-- Name: TABLE rms_menubuttons; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_menubuttons IS 'RMS_MenuButtons菜单的按钮';
+
+
+--
+-- Name: COLUMN rms_menubuttons.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menubuttons.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_menubuttons.buttonid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menubuttons.buttonid IS '按钮的Id';
+
+
+--
+-- Name: COLUMN rms_menubuttons.manuid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menubuttons.manuid IS '菜单Id';
+
+
+--
+-- Name: COLUMN rms_menubuttons.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menubuttons.orderno IS '排序';
+
+
+--
+-- Name: rms_menus_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_menus_id_seq
+    START WITH 48
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_menus_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_menus; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_menus (
+    id integer DEFAULT nextval('rms_menus_id_seq'::regclass) NOT NULL,
+    parentmanuid integer,
+    orderno integer,
+    manuname character varying(20),
+    url character varying(200),
+    icon character varying(200),
+    micon character varying(200),
+    remarks character varying(200),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    isenable boolean,
+    isshow boolean,
+    typeid smallint,
+    valuename character varying(20),
+    companyid integer,
+    projectid integer,
+    level smallint
+);
+
+
+ALTER TABLE rms_menus OWNER TO postgres;
+
+--
+-- Name: TABLE rms_menus; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_menus IS 'RMS_Menus菜单';
+
+
+--
+-- Name: COLUMN rms_menus.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_menus.parentmanuid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.parentmanuid IS '上级Id';
+
+
+--
+-- Name: COLUMN rms_menus.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.orderno IS '排序';
+
+
+--
+-- Name: COLUMN rms_menus.manuname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.manuname IS '名称';
+
+
+--
+-- Name: COLUMN rms_menus.url; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.url IS '跳转地址';
+
+
+--
+-- Name: COLUMN rms_menus.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.icon IS '图标';
+
+
+--
+-- Name: COLUMN rms_menus.micon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.micon IS '大图标';
+
+
+--
+-- Name: COLUMN rms_menus.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_menus.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_menus.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.modifytime IS '更新时间';
+
+
+--
+-- Name: COLUMN rms_menus.isenable; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.isenable IS '是否可用';
+
+
+--
+-- Name: COLUMN rms_menus.isshow; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.isshow IS '是否显示';
+
+
+--
+-- Name: COLUMN rms_menus.valuename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.valuename IS '值、编号';
+
+
+--
+-- Name: COLUMN rms_menus.companyid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.companyid IS '公司id';
+
+
+--
+-- Name: COLUMN rms_menus.projectid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_menus.projectid IS '项目id';
+
+
+--
+-- Name: rms_project_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_project_id_seq
+    START WITH 5
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_project_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_project; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_project (
+    id integer DEFAULT nextval('rms_project_id_seq'::regclass) NOT NULL,
+    companyid integer,
+    keys character varying(200),
+    name character varying(20),
+    remarks character varying(200),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE rms_project OWNER TO postgres;
+
+--
+-- Name: TABLE rms_project; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_project IS '公司';
+
+
+--
+-- Name: COLUMN rms_project.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_project.companyid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.companyid IS '公司id';
+
+
+--
+-- Name: COLUMN rms_project.keys; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.keys IS '加密key';
+
+
+--
+-- Name: COLUMN rms_project.name; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.name IS '名称';
+
+
+--
+-- Name: COLUMN rms_project.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_project.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_project.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.modifytime IS '更新时间';
+
+
+--
+-- Name: COLUMN rms_project.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN rms_project.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_project.isdeleted IS '是否删除';
+
+
+--
+-- Name: rms_role; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_role (
+    id character varying(36) NOT NULL,
+    rolename character varying(30),
+    remarks character varying(30),
+    createby character varying(20),
+    modifyby character varying(40),
+    createtime date,
+    modifytime date,
+    roletypes smallint,
+    jurisdiction jsonb,
+    companyid integer,
+    projectid integer
+);
+
+
+ALTER TABLE rms_role OWNER TO postgres;
+
+--
+-- Name: TABLE rms_role; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_role IS 'RMS_Role角色';
+
+
+--
+-- Name: COLUMN rms_role.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_role.rolename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.rolename IS '角色名称';
+
+
+--
+-- Name: COLUMN rms_role.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.remarks IS '备注';
+
+
+--
+-- Name: COLUMN rms_role.createby; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.createby IS '创建人';
+
+
+--
+-- Name: COLUMN rms_role.modifyby; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.modifyby IS '修改人';
+
+
+--
+-- Name: COLUMN rms_role.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_role.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.modifytime IS '修改时间';
+
+
+--
+-- Name: COLUMN rms_role.jurisdiction; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.jurisdiction IS '权限 的json数据';
+
+
+--
+-- Name: COLUMN rms_role.companyid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.companyid IS '公司id';
+
+
+--
+-- Name: COLUMN rms_role.projectid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_role.projectid IS '项目id';
+
+
+--
+-- Name: rms_rolemanubuttons_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_rolemanubuttons_id_seq
+    START WITH 859
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_rolemanubuttons_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_rolemanubuttons; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_rolemanubuttons (
+    id integer DEFAULT nextval('rms_rolemanubuttons_id_seq'::regclass) NOT NULL,
+    roleid character varying(36),
+    menubuttonsid integer
+);
+
+
+ALTER TABLE rms_rolemanubuttons OWNER TO postgres;
+
+--
+-- Name: TABLE rms_rolemanubuttons; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_rolemanubuttons IS 'RMS_RoleManuButtons角色菜单的按钮表';
+
+
+--
+-- Name: COLUMN rms_rolemanubuttons.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanubuttons.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_rolemanubuttons.roleid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanubuttons.roleid IS '角色的Id';
+
+
+--
+-- Name: COLUMN rms_rolemanubuttons.menubuttonsid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanubuttons.menubuttonsid IS '菜单的按钮的Id';
+
+
+--
+-- Name: rms_rolemanus_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE rms_rolemanus_id_seq
+    START WITH 408
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE rms_rolemanus_id_seq OWNER TO postgres;
+
+--
+-- Name: rms_rolemanus; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_rolemanus (
+    id integer DEFAULT nextval('rms_rolemanus_id_seq'::regclass) NOT NULL,
+    roleid character varying(36),
+    manuid integer
+);
+
+
+ALTER TABLE rms_rolemanus OWNER TO postgres;
+
+--
+-- Name: TABLE rms_rolemanus; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_rolemanus IS 'RMS_RoleManus角色菜单';
+
+
+--
+-- Name: COLUMN rms_rolemanus.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanus.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_rolemanus.roleid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanus.roleid IS '角色的Id';
+
+
+--
+-- Name: COLUMN rms_rolemanus.manuid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_rolemanus.manuid IS '菜单的Id';
+
+
+--
+-- Name: rms_user; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_user (
+    id character varying(36) NOT NULL,
+    departmentid integer,
+    loginname character varying(30),
+    truename character varying(20),
+    password character varying(40),
+    createtime timestamp(6) without time zone,
+    modifytime timestamp(6) without time zone,
+    usertype integer,
+    phone character varying(30),
+    companyid integer
+);
+
+
+ALTER TABLE rms_user OWNER TO postgres;
+
+--
+-- Name: TABLE rms_user; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_user IS 'RMS_User系统用户';
+
+
+--
+-- Name: COLUMN rms_user.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_user.departmentid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.departmentid IS '部门主键';
+
+
+--
+-- Name: COLUMN rms_user.loginname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.loginname IS '登录名';
+
+
+--
+-- Name: COLUMN rms_user.truename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.truename IS '姓名';
+
+
+--
+-- Name: COLUMN rms_user.password; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.password IS '密码';
+
+
+--
+-- Name: COLUMN rms_user.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN rms_user.modifytime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.modifytime IS '修改时间';
+
+
+--
+-- Name: COLUMN rms_user.usertype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.usertype IS '用户类型';
+
+
+--
+-- Name: COLUMN rms_user.phone; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.phone IS '手机';
+
+
+--
+-- Name: COLUMN rms_user.companyid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_user.companyid IS '公司id';
+
+
+--
+-- Name: rms_userrole; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE rms_userrole (
+    id character varying(36) NOT NULL,
+    userid character varying(36),
+    roleid character varying(36)
+);
+
+
+ALTER TABLE rms_userrole OWNER TO postgres;
+
+--
+-- Name: TABLE rms_userrole; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE rms_userrole IS 'RMS_UserRole用户所属角色表';
+
+
+--
+-- Name: COLUMN rms_userrole.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_userrole.id IS '主键';
+
+
+--
+-- Name: COLUMN rms_userrole.userid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_userrole.userid IS '用户的Id';
+
+
+--
+-- Name: COLUMN rms_userrole.roleid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN rms_userrole.roleid IS '角色的Id';
+
+
+--
+-- Name: sl_user; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sl_user (
+    userid character varying(36) NOT NULL,
+    weixinid character varying(50),
+    loginname character varying(30),
+    password character varying(200),
+    usertype smallint,
+    levels smallint,
+    scores integer,
+    states smallint,
+    tags character varying(20),
+    currentip character varying(20),
+    currentport character varying(20),
+    lastloginaddr character varying(30),
+    isonline boolean,
+    createtime date,
+    updatetime date,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sl_user OWNER TO postgres;
+
+--
+-- Name: COLUMN sl_user.userid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.userid IS '主键';
+
+
+--
+-- Name: COLUMN sl_user.weixinid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.weixinid IS '用户微信openId';
+
+
+--
+-- Name: COLUMN sl_user.loginname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.loginname IS '登录名';
+
+
+--
+-- Name: COLUMN sl_user.password; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.password IS '密码';
+
+
+--
+-- Name: COLUMN sl_user.usertype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.usertype IS '用户类型 0为普通用户 1为vip会员';
+
+
+--
+-- Name: COLUMN sl_user.levels; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.levels IS '等级（联盟）';
+
+
+--
+-- Name: COLUMN sl_user.scores; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.scores IS '积分（联盟）';
+
+
+--
+-- Name: COLUMN sl_user.states; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.states IS '状态（1锁定 0 正常-1关闭）';
+
+
+--
+-- Name: COLUMN sl_user.tags; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.tags IS '标签(组)';
+
+
+--
+-- Name: COLUMN sl_user.currentip; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.currentip IS '在线iP';
+
+
+--
+-- Name: COLUMN sl_user.currentport; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.currentport IS '在线端口';
+
+
+--
+-- Name: COLUMN sl_user.lastloginaddr; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.lastloginaddr IS '最后登录地点';
+
+
+--
+-- Name: COLUMN sl_user.isonline; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.isonline IS '状态（1在线 0 下线 ）';
+
+
+--
+-- Name: COLUMN sl_user.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sl_user.updatetime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.updatetime IS '修改时间';
+
+
+--
+-- Name: COLUMN sl_user.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_user.isdeleted IS '是否删除';
+
+
+--
+-- Name: sl_userinfo; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sl_userinfo (
+    userid character varying(36) NOT NULL,
+    nickname character varying(20),
+    signed character varying(254),
+    imgeurl character varying(255),
+    phone character varying(20),
+    provincecode character varying(20),
+    citycode character varying(20),
+    areacode character varying(20),
+    address character varying(200),
+    categoryid character varying(20),
+    details text,
+    longitude double precision,
+    latitude double precision,
+    locationupdatetime date,
+    updatetime date,
+    truename character varying(20),
+    sex character varying(10)
+);
+
+
+ALTER TABLE sl_userinfo OWNER TO postgres;
+
+--
+-- Name: COLUMN sl_userinfo.userid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.userid IS '用户Id';
+
+
+--
+-- Name: COLUMN sl_userinfo.nickname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.nickname IS '昵称';
+
+
+--
+-- Name: COLUMN sl_userinfo.signed; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.signed IS '签名';
+
+
+--
+-- Name: COLUMN sl_userinfo.imgeurl; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.imgeurl IS '头像图片';
+
+
+--
+-- Name: COLUMN sl_userinfo.phone; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.phone IS '电话';
+
+
+--
+-- Name: COLUMN sl_userinfo.provincecode; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.provincecode IS '省';
+
+
+--
+-- Name: COLUMN sl_userinfo.citycode; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.citycode IS '城市';
+
+
+--
+-- Name: COLUMN sl_userinfo.areacode; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.areacode IS '区';
+
+
+--
+-- Name: COLUMN sl_userinfo.address; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.address IS '地址';
+
+
+--
+-- Name: COLUMN sl_userinfo.categoryid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.categoryid IS '类别';
+
+
+--
+-- Name: COLUMN sl_userinfo.details; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.details IS '详情';
+
+
+--
+-- Name: COLUMN sl_userinfo.longitude; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.longitude IS '经度';
+
+
+--
+-- Name: COLUMN sl_userinfo.latitude; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.latitude IS '纬度';
+
+
+--
+-- Name: COLUMN sl_userinfo.locationupdatetime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.locationupdatetime IS '位置更新时间';
+
+
+--
+-- Name: COLUMN sl_userinfo.updatetime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.updatetime IS '更新时间';
+
+
+--
+-- Name: COLUMN sl_userinfo.truename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.truename IS '姓名';
+
+
+--
+-- Name: COLUMN sl_userinfo.sex; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sl_userinfo.sex IS ' 男 女';
+
+
+--
+-- Name: sys_cityarea; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sys_cityarea (
+    cityareaid integer NOT NULL,
+    parentid integer,
+    tname character varying(30),
+    tcode character varying(20),
+    orderno integer,
+    areatypes integer,
+    icon character varying(100),
+    remarks character varying(100),
+    createtime date,
+    updatetime date,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sys_cityarea OWNER TO postgres;
+
+--
+-- Name: TABLE sys_cityarea; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sys_cityarea IS 'Sys_CityArea 地区城市';
+
+
+--
+-- Name: COLUMN sys_cityarea.cityareaid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.cityareaid IS '主键';
+
+
+--
+-- Name: COLUMN sys_cityarea.parentid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.parentid IS '父级';
+
+
+--
+-- Name: COLUMN sys_cityarea.tname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.tname IS '名称';
+
+
+--
+-- Name: COLUMN sys_cityarea.tcode; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.tcode IS '代号';
+
+
+--
+-- Name: COLUMN sys_cityarea.orderno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.orderno IS '排序';
+
+
+--
+-- Name: COLUMN sys_cityarea.areatypes; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.areatypes IS '类型（类型 0市 1 区 2 省）';
+
+
+--
+-- Name: COLUMN sys_cityarea.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.icon IS '图标';
+
+
+--
+-- Name: COLUMN sys_cityarea.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.remarks IS '备注';
+
+
+--
+-- Name: COLUMN sys_cityarea.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sys_cityarea.updatetime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_cityarea.updatetime IS '修改时间';
+
+
+--
+-- Name: sys_config; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sys_config (
+    cid integer NOT NULL,
+    ctype character varying(20),
+    cname character varying(200),
+    cvalue character varying(100),
+    orderid integer,
+    remark character varying(100),
+    updatetime date,
+    createman character varying(30),
+    isvalid boolean
+);
+
+
+ALTER TABLE sys_config OWNER TO postgres;
+
+--
+-- Name: TABLE sys_config; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sys_config IS 'Sys_Config  系统配置表';
+
+
+--
+-- Name: COLUMN sys_config.cid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.cid IS '主键';
+
+
+--
+-- Name: COLUMN sys_config.ctype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.ctype IS '类型';
+
+
+--
+-- Name: COLUMN sys_config.cname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.cname IS '名称';
+
+
+--
+-- Name: COLUMN sys_config.cvalue; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.cvalue IS '值';
+
+
+--
+-- Name: COLUMN sys_config.orderid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.orderid IS '排序';
+
+
+--
+-- Name: COLUMN sys_config.remark; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.remark IS '备注';
+
+
+--
+-- Name: COLUMN sys_config.updatetime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.updatetime IS '更新时间';
+
+
+--
+-- Name: COLUMN sys_config.createman; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.createman IS '添加人';
+
+
+--
+-- Name: COLUMN sys_config.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_config.isvalid IS '是否有效';
+
+
+--
+-- Name: sys_dictionary_dicid_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE sys_dictionary_dicid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE sys_dictionary_dicid_seq OWNER TO postgres;
+
+--
+-- Name: sys_dictionary; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sys_dictionary (
+    dicid integer DEFAULT nextval('sys_dictionary_dicid_seq'::regclass) NOT NULL,
+    dictypeid integer,
+    parentid integer,
+    dicname character varying(30),
+    dicno character varying(20),
+    icon character varying(200),
+    remarks character varying(100),
+    orderid integer,
+    createtime timestamp(6) without time zone,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sys_dictionary OWNER TO postgres;
+
+--
+-- Name: TABLE sys_dictionary; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sys_dictionary IS 'sys_dictionary 字典值表';
+
+
+--
+-- Name: COLUMN sys_dictionary.dicid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.dicid IS '字典主键';
+
+
+--
+-- Name: COLUMN sys_dictionary.dictypeid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.dictypeid IS '字典组（类型）';
+
+
+--
+-- Name: COLUMN sys_dictionary.parentid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.parentid IS '上级id';
+
+
+--
+-- Name: COLUMN sys_dictionary.dicname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.dicname IS '字典名称';
+
+
+--
+-- Name: COLUMN sys_dictionary.dicno; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.dicno IS '字典类型编号';
+
+
+--
+-- Name: COLUMN sys_dictionary.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.icon IS '图标';
+
+
+--
+-- Name: COLUMN sys_dictionary.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.remarks IS '备注';
+
+
+--
+-- Name: COLUMN sys_dictionary.orderid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.orderid IS '排序号';
+
+
+--
+-- Name: COLUMN sys_dictionary.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sys_dictionary.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN sys_dictionary.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictionary.isdeleted IS '是否删除';
+
+
+--
+-- Name: sys_dictype_dictypeid_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE sys_dictype_dictypeid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE sys_dictype_dictypeid_seq OWNER TO postgres;
+
+--
+-- Name: sys_dictype; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sys_dictype (
+    dictypeid integer DEFAULT nextval('sys_dictype_dictypeid_seq'::regclass) NOT NULL,
+    dictypename character varying(30),
+    dictypenum character varying(20),
+    icon character varying(200),
+    remarks character varying(100),
+    orderid integer,
+    createtime timestamp(6) without time zone,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sys_dictype OWNER TO postgres;
+
+--
+-- Name: TABLE sys_dictype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sys_dictype IS 'Sys_DicType 字典定义表';
+
+
+--
+-- Name: COLUMN sys_dictype.dictypeid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.dictypeid IS '主键';
+
+
+--
+-- Name: COLUMN sys_dictype.dictypename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.dictypename IS '字典类型名称';
+
+
+--
+-- Name: COLUMN sys_dictype.dictypenum; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.dictypenum IS '字典类型编号';
+
+
+--
+-- Name: COLUMN sys_dictype.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.icon IS '图标';
+
+
+--
+-- Name: COLUMN sys_dictype.remarks; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.remarks IS '备注';
+
+
+--
+-- Name: COLUMN sys_dictype.orderid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.orderid IS '排序号';
+
+
+--
+-- Name: COLUMN sys_dictype.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sys_dictype.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN sys_dictype.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_dictype.isdeleted IS '是否删除';
+
+
+--
+-- Name: sys_files; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sys_files (
+    fileid character varying(36) NOT NULL,
+    toid character varying(40),
+    showname character varying(100),
+    filename character varying(150),
+    sourcetable character varying(20),
+    relativepath character varying(200),
+    route character varying(100),
+    suffix character varying(10),
+    filetype character varying(20),
+    addtime date,
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sys_files OWNER TO postgres;
+
+--
+-- Name: TABLE sys_files; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sys_files IS 'Sys_Files 文件';
+
+
+--
+-- Name: COLUMN sys_files.fileid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.fileid IS '主键';
+
+
+--
+-- Name: COLUMN sys_files.toid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.toid IS '所禹对象Id';
+
+
+--
+-- Name: COLUMN sys_files.showname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.showname IS '显示名称';
+
+
+--
+-- Name: COLUMN sys_files.filename; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.filename IS '文件名';
+
+
+--
+-- Name: COLUMN sys_files.sourcetable; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.sourcetable IS '来源表（某个数据表）';
+
+
+--
+-- Name: COLUMN sys_files.relativepath; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.relativepath IS '相对路径';
+
+
+--
+-- Name: COLUMN sys_files.route; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.route IS '路由';
+
+
+--
+-- Name: COLUMN sys_files.suffix; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.suffix IS '后缀名';
+
+
+--
+-- Name: COLUMN sys_files.filetype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.filetype IS '文件属性类型（中文）';
+
+
+--
+-- Name: COLUMN sys_files.addtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.addtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sys_files.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN sys_files.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sys_files.isdeleted IS '是否删除';
+
+
+--
+-- Name: sysitem_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE sysitem_id_seq
+    START WITH 2
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE sysitem_id_seq OWNER TO postgres;
+
+--
+-- Name: sysitem; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE sysitem (
+    id integer DEFAULT nextval('sysitem_id_seq'::regclass) NOT NULL,
+    itemtype character varying(20),
+    itemvalue character varying(100),
+    itemname character varying(200),
+    icon character varying(100),
+    orderid integer,
+    remark character varying(100),
+    createtime character varying(20),
+    createman character varying(30),
+    isvalid boolean,
+    isdeleted boolean
+);
+
+
+ALTER TABLE sysitem OWNER TO postgres;
+
+--
+-- Name: TABLE sysitem; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON TABLE sysitem IS 'SysItem  系统数据字典表';
+
+
+--
+-- Name: COLUMN sysitem.id; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.id IS '主键';
+
+
+--
+-- Name: COLUMN sysitem.itemtype; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.itemtype IS '类型';
+
+
+--
+-- Name: COLUMN sysitem.itemvalue; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.itemvalue IS '值';
+
+
+--
+-- Name: COLUMN sysitem.itemname; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.itemname IS '名称';
+
+
+--
+-- Name: COLUMN sysitem.icon; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.icon IS '图标地址';
+
+
+--
+-- Name: COLUMN sysitem.orderid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.orderid IS '排序';
+
+
+--
+-- Name: COLUMN sysitem.remark; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.remark IS '备注';
+
+
+--
+-- Name: COLUMN sysitem.createtime; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.createtime IS '添加时间';
+
+
+--
+-- Name: COLUMN sysitem.createman; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.createman IS '添加人';
+
+
+--
+-- Name: COLUMN sysitem.isvalid; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.isvalid IS '是否有效';
+
+
+--
+-- Name: COLUMN sysitem.isdeleted; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN sysitem.isdeleted IS '是否删除';
+
+
+--
+-- Name: v_menubuttons; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_menubuttons AS
+ SELECT rms_menubuttons.manuid,
+    rms_menubuttons.orderno,
+    rms_buttons.id,
+    rms_buttons.buttonname,
+    rms_buttons.remarks,
+    rms_buttons.createtime,
+    rms_buttons.modifytime,
+    rms_buttons.valuename,
+    rms_menubuttons.id AS menubuttonsid,
+    rms_buttons.functionname,
+    rms_buttons.icon
+   FROM (rms_menubuttons
+     JOIN rms_buttons ON (((rms_menubuttons.buttonid)::text = (rms_buttons.id)::text)));
+
+
+ALTER TABLE v_menubuttons OWNER TO postgres;
+
+--
+-- Name: v_rms_menus; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_rms_menus AS
+ SELECT rms_menus.projectid,
+    rms_menus.companyid,
+    rms_menus.valuename,
+    rms_menus.typeid,
+    rms_menus.isshow,
+    rms_menus.isenable,
+    rms_menus.modifytime,
+    rms_menus.createtime,
+    rms_menus.remarks,
+    rms_menus.micon,
+    rms_menus.icon,
+    rms_menus.url,
+    rms_menus.manuname,
+    rms_menus.orderno,
+    rms_menus.parentmanuid,
+    rms_menus.id,
+    rms_project.name AS projectname,
+    rms_menus.level
+   FROM (rms_menus
+     LEFT JOIN rms_project ON (((rms_menus.projectid)::text = (rms_project.id)::text)));
+
+
+ALTER TABLE v_rms_menus OWNER TO postgres;
+
+--
+-- Name: v_rms_project; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_rms_project AS
+ SELECT rms_project.id,
+    rms_project.companyid,
+    rms_project.keys,
+    rms_project.name,
+    rms_project.remarks,
+    rms_project.createtime,
+    rms_project.modifytime,
+    rms_project.isvalid,
+    rms_project.isdeleted,
+    rms_company.name AS companyname
+   FROM (rms_project
+     LEFT JOIN rms_company ON (((rms_project.companyid)::text = (rms_company.id)::text)));
+
+
+ALTER TABLE v_rms_project OWNER TO postgres;
+
+--
+-- Name: v_role; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_role AS
+ SELECT rms_role.id,
+    rms_role.rolename,
+    rms_role.remarks,
+    rms_role.createby,
+    rms_role.createtime,
+    rms_role.modifyby,
+    rms_role.modifytime,
+    rms_role.roletypes,
+    sysitem.itemname AS roletypesname,
+    rms_role.companyid,
+    rms_role.projectid,
+    rms_project.name AS projectname,
+    rms_role.jurisdiction
+   FROM ((rms_role
+     LEFT JOIN sysitem ON (((rms_role.roletypes)::text = (sysitem.itemvalue)::text)))
+     LEFT JOIN rms_project ON (((rms_role.projectid)::text = (rms_project.id)::text)))
+  WHERE ((sysitem.itemtype)::text = 'RoleTypes'::text);
+
+
+ALTER TABLE v_role OWNER TO postgres;
+
+--
+-- Name: v_rolemanubuttons; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_rolemanubuttons AS
+ SELECT rms_rolemanubuttons.roleid,
+    rms_menubuttons.manuid,
+    rms_menubuttons.orderno,
+    rms_buttons.remarks,
+    rms_buttons.createtime,
+    rms_buttons.modifytime,
+    rms_buttons.valuename,
+    rms_buttons.functionname,
+    rms_buttons.buttonname,
+    rms_buttons.id,
+    rms_buttons.icon,
+    rms_buttons.color
+   FROM ((rms_rolemanubuttons
+     JOIN rms_menubuttons ON (((rms_rolemanubuttons.menubuttonsid)::text = (rms_menubuttons.id)::text)))
+     JOIN rms_buttons ON (((rms_menubuttons.buttonid)::text = (rms_buttons.id)::text)));
+
+
+ALTER TABLE v_rolemanubuttons OWNER TO postgres;
+
+--
+-- Name: v_rolemanus; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_rolemanus AS
+ SELECT rms_rolemanus.manuid,
+    rms_rolemanus.roleid,
+    rms_menus.parentmanuid,
+    rms_menus.remarks,
+    rms_menus.orderno,
+    rms_menus.manuname,
+    rms_menus.url,
+    rms_menus.isshow,
+    rms_menus.isenable,
+    rms_menus.icon,
+    rms_menus.micon,
+    rms_menus.typeid,
+    rms_menus.valuename,
+    rms_menus.level
+   FROM (rms_menus
+     JOIN rms_rolemanus ON (((rms_menus.id)::text = (rms_rolemanus.manuid)::text)));
+
+
+ALTER TABLE v_rolemanus OWNER TO postgres;
+
+--
+-- Name: v_sl_user; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_sl_user AS
+ SELECT sl_user.userid,
+    sl_userinfo.nickname,
+    sl_userinfo.signed,
+    sl_userinfo.phone,
+    sl_userinfo.address,
+    sl_user.loginname,
+    sl_user.scores,
+    sl_user.createtime,
+    sl_user.states,
+    sl_userinfo.truename,
+    sl_userinfo.sex,
+    sl_userinfo.imgeurl
+   FROM (sl_user
+     LEFT JOIN sl_userinfo ON (((sl_user.userid)::text = (sl_userinfo.userid)::text)));
+
+
+ALTER TABLE v_sl_user OWNER TO postgres;
+
+--
+-- Name: v_sys_cityarea; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_sys_cityarea AS
+ SELECT sys_cityarea.cityareaid,
+    sys_cityarea.parentid,
+    sys_cityarea.tname,
+    sys_cityarea.tcode,
+    sys_cityarea.areatypes,
+    sys_cityarea.icon,
+    sys_cityarea.remarks,
+    sys_cityarea.createtime,
+    sys_cityarea.updatetime,
+    sys_cityarea.isvalid,
+    sys_cityarea.isdeleted,
+    sysitem.itemname AS areatypesname,
+    sys_cityarea.orderno
+   FROM (sys_cityarea
+     LEFT JOIN sysitem ON (((sys_cityarea.areatypes)::text = (sysitem.itemvalue)::text)))
+  WHERE ((sysitem.itemtype)::text = 'areatypes'::text);
+
+
+ALTER TABLE v_sys_cityarea OWNER TO postgres;
+
+--
+-- Name: v_userrole; Type: VIEW; Schema: public; Owner: postgres
+--
+
+CREATE VIEW v_userrole AS
+ SELECT rms_user.id,
+    rms_user.loginname,
+    rms_user.truename,
+    rms_user.password,
+    rms_user.createtime,
+    rms_user.modifytime,
+    rms_user.departmentid,
+    rms_userrole.roleid,
+    v_role.rolename,
+    rms_user.usertype,
+    rms_user.phone,
+    rms_department.name AS departmentname,
+    v_role.jurisdiction,
+    rms_user.companyid,
+    rms_company.name AS companyname,
+    v_role.projectname
+   FROM ((((rms_user
+     LEFT JOIN rms_company ON (((rms_user.companyid)::text = (rms_company.id)::text)))
+     LEFT JOIN rms_department ON (((rms_user.departmentid)::text = (rms_department.id)::text)))
+     LEFT JOIN rms_userrole ON (((rms_user.id)::text = (rms_userrole.userid)::text)))
+     LEFT JOIN v_role ON (((rms_userrole.roleid)::text = (v_role.id)::text)));
+
+
+ALTER TABLE v_userrole OWNER TO postgres;
+
+--
+-- Name: warning; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE warning (
+    warning text,
+    btc text,
+    email text
+);
+
+
+ALTER TABLE warning OWNER TO postgres;
+
+--
+-- Data for Name: rms_buttons; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_buttons (id, orderno, buttonname, valuename, icon, functionname, remarks, createtime, modifytime, color) FROM stdin;
+3	1	添加	AddBtn	fa-plus	AddInfo	 \r\n添加数据 	\N	\N	success
+4	5	搜索	DivSearh	fa-search	Search	\N	2016-07-27 00:00:00	2016-07-27 00:00:00	primary
+5	2	修改	 EditBtn	fa-edit	EditInfo	\N	2016-07-27 00:00:00	2016-07-27 00:00:00	warning
+1	3	删除	DelBtn	fa-remove	Del	\N	2016-07-27 00:00:00	2016-07-27 00:00:00	danger
+2	4	查看	DetailsBtn	fa-info	ShowOP	\N	\N	\N	info
+9	7	更新	ReFlashBtn	fa-cloud-download	ReFlashOP	\N	2016-09-01 14:05:12.875457	2016-09-01 14:05:12.875457	purple
+10	4	导入	ImportBtn	fa-cloud-upload	Import	\N	2016-09-09 13:52:47.781369	2016-09-09 13:52:47.781369	inverse
+15	4	保存配置	saveset	fa-check	SaveSet	6	\N	\N	inverse
+16	3	模板导出	btnexport	fa-cloud-download	TemplateExport	\N	2018-02-01 10:14:04.23382	2018-02-01 10:14:04.23382	green-dark
+17	7	发送指令	showSendBtn	fa-send-o	showSend	\N	2018-02-01 10:15:20.011193	2018-02-01 10:15:20.011193	pink
+13	9	初始化	initBtn	fa-reply	initi	\N	\N	\N	default
+18	4	解绑	ubindtn	fa-warning	ubind	\N	2018-02-01 10:17:45.536692	2018-02-01 10:17:45.536692	purple-light
+\.
+
+
+--
+-- Name: rms_buttons_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_buttons_id_seq', 18, true);
+
+
+--
+-- Data for Name: rms_company; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_company (id, orderno, name, remarks, createtime, modifytime, isvalid, isdeleted) FROM stdin;
+1	3	万瑞博 	4	2016-08-29 14:06:48.129787	2016-08-29 14:10:59.77718	t	f
+2	22	天绘北斗测试	1212	2016-08-29 15:28:54.392553	2018-01-30 18:08:38.151118	t	f
+\.
+
+
+--
+-- Name: rms_company_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_company_id_seq', 4, true);
+
+
+--
+-- Data for Name: rms_department; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_department (id, parentid, orderno, name, icon, remarks, createtime, modifytime, companyid, level) FROM stdin;
+3	1	2	切图部	icon-color_swatch	23	2016-08-29 17:00:16.64912	2016-08-29 17:00:16.64912	2	\N
+2	1	0	开发部2	icon-brick_edit	哈哈1	2016-07-29 00:00:00	2018-01-27 16:50:15.723707	1	1
+1	0	2	设计部	icon-comment	仍	2016-08-29 16:57:24.814292	2018-01-27 17:05:12.837019	1	0
+7	2	2	1	3	4	2018-01-27 16:57:20.986031	2018-01-27 17:17:25.969952	1	2
+\.
+
+
+--
+-- Name: rms_department_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_department_id_seq', 8, true);
+
+
+--
+-- Data for Name: rms_menubuttons; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_menubuttons (id, buttonid, manuid, orderno) FROM stdin;
+1	3	5	0
+2	2	5	4
+3	1	5	2
+4	5	5	1
+5	4	5	3
+6	1	4	3
+7	3	4	0
+8	4	4	4
+9	2	4	2
+10	5	4	1
+11	1	6	2
+12	2	6	4
+13	5	6	1
+14	4	6	3
+15	3	6	0
+16	1	8	3
+17	5	8	1
+18	2	8	2
+19	3	8	0
+20	4	8	4
+21	1	7	3
+22	2	7	2
+23	4	7	4
+24	3	7	0
+25	5	7	1
+26	3	9	0
+27	4	9	4
+28	1	9	1
+29	5	9	2
+30	2	9	3
+31	5	10	1
+32	4	10	4
+33	3	10	0
+34	2	10	2
+35	1	10	3
+36	3	17	0
+37	5	17	1
+38	5	18	1
+39	3	18	0
+51	1	17	2
+52	1	18	2
+138	1	54	2
+139	3	54	0
+140	4	54	3
+141	5	54	1
+142	5	55	1
+143	4	55	4
+144	15	55	3
+145	1	55	2
+146	3	55	0
+147	5	56	1
+148	4	56	4
+149	3	56	0
+150	2	56	3
+151	1	56	2
+152	2	58	3
+153	5	58	1
+154	4	58	4
+155	1	58	2
+156	3	58	0
+157	5	59	1
+158	4	59	4
+159	2	59	3
+160	1	59	2
+161	3	59	0
+162	5	60	1
+163	4	60	4
+164	2	60	3
+165	3	60	0
+166	1	60	2
+167	16	62	1
+168	2	62	4
+169	18	62	6
+170	17	62	7
+171	10	62	0
+172	4	62	5
+173	13	62	8
+174	1	62	3
+175	5	62	2
+176	2	66	1
+177	5	66	0
+178	1	66	2
+179	4	66	3
+180	4	67	2
+181	5	67	0
+182	2	67	1
+\.
+
+
+--
+-- Name: rms_menubuttons_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_menubuttons_id_seq', 182, true);
+
+
+--
+-- Data for Name: rms_menus; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_menus (id, parentmanuid, orderno, manuname, url, icon, micon, remarks, createtime, modifytime, isenable, isshow, typeid, valuename, companyid, projectid, level) FROM stdin;
+1	0	12	权限管理	#	icon-shape_move_forwards	/Content/EasyUI/themes/icons/32/box.png	1212	2016-07-28 00:00:00	2016-07-28 00:00:00	t	t	1	0102	1	1	0
+12	3	2	设备列表1	device	icon-shape_flip_horizontal	\N	sdsdsd	2016-08-08 00:00:00	2018-01-26 11:37:02.298539	t	f	2	0201	1	1	1
+5	2	1	字典类型	Sys_DicType	icon-page_white_star	\N	词典的类型	2016-08-08 00:00:00	2016-08-08 00:00:00	t	t	2	010101	1	1	1
+7	1	2	角色管理	role	icon-key_go	\N	\N	2016-07-28 00:00:00	2016-07-28 00:00:00	t	t	2	010201	1	1	1
+8	1	1	菜单管理	manu	icon-note	/Content/EasyUI/themes/icons/32/bell_error.png	\N	2016-07-26 00:00:00	2016-07-26 00:00:00	t	t	2	010206	1	1	1
+9	1	5	用户管理	user	icon-user	\N	454545	2016-08-17 00:00:00	2016-08-17 00:00:00	t	t	2	010204	1	1	1
+10	1	6	部门管理	Department	icon-door_open	\N	\N	2016-07-28 00:00:00	2016-07-28 00:00:00	t	t	2	010203	1	1	1
+17	2	3	公司管理	rms_company	icon-note	/Content/EasyUI/themes/icons/32/bell_error.png	\N	2016-08-29 13:54:00.981908	2016-08-29 13:54:00.981908	t	t	2	010103	1	1	1
+3	0	2	塞拉数据	main?values=02	menu-icon-7	\N	\N	2016-08-08 00:00:00	2018-01-26 11:43:48.734786	t	f	0	02	1	1	0
+11	3	1	广告管理	sl_advertise	icon-television	\N	哈哈	2016-08-09 00:00:00	2018-01-26 11:53:17.725331	t	f	2	0202	1	1	1
+13	3	3	服务站管理	sl_services	icon-color_swatch	\N	12	2016-08-17 00:00:00	2018-01-26 12:29:57.255136	f	f	1	0203	1	1	1
+18	2	4	项目管理	rms_project	icon-page_header_footer	/Content/EasyUI/themes/icons/32/page.png	\N	2016-08-29 13:55:06.109634	2016-08-29 13:55:06.109634	t	t	2	010104	1	1	1
+2	0	2	基础设置	SysSet	icon-note	\N	sdsdsd	2016-07-29 00:00:00	2016-07-29 00:00:00	t	t	1	0101	1	1	0
+50	12	23	23	23	23	\N	22	2018-01-26 17:34:43.50505	2018-01-27 09:32:52.495929	t	f	2	2	1	0	2
+4	2	2	数据字典	Sys_Dictionary	icon-heart	\N	\N	2016-08-08 00:00:00	2018-01-27 09:33:52.585366	t	f	2	010102	1	1	1
+6	1	0	按钮管理	Buttons	icon-user	\N	\N	2016-07-26 00:00:00	2016-07-26 00:00:00	t	t	2	010205	1	1	1
+53	0	0	权限管理	#	icon-layers	\N	1	2018-02-01 09:41:41.838811	2018-02-01 09:42:02.270722	t	t	1	0102	1	7	0
+57	0	2	基础设置	SysSet	icon-settings	\N	\N	2018-02-01 09:48:33.855017	2018-02-01 09:48:33.855017	t	t	1	0101	1	7	0
+61	0	3	设备	device#	icon-paper-plane	\N	\N	2018-02-01 10:00:54.136434	2018-02-01 10:01:01.559384	t	t	1	03	1	7	0
+65	0	4	业务数据	yewu#	icon-grid	\N	\N	2018-02-01 10:05:26.70178	2018-02-01 10:05:26.70178	t	t	1	02	1	7	0
+54	53	1	用户管理	user	icon-user	\N	\N	2018-02-01 09:42:55.763815	2018-02-01 10:29:25.364986	t	t	2	010204	1	7	1
+55	53	2	角色	role	icon-eye	\N	\N	2018-02-01 09:45:25.504077	2018-02-01 10:29:49.199445	t	t	2	010201	1	7	1
+56	53	3	单位管理	Department	icon-grid	\N	\N	2018-02-01 09:46:45.624796	2018-02-01 10:30:02.338374	t	t	2	010203	1	7	1
+58	57	1	app版本	sys_appversion	icon-cursor	\N	\N	2018-02-01 09:51:25.049677	2018-02-01 10:30:05.337459	t	t	2	010103	1	7	1
+59	57	2	字典类型	Sys_DicType	icon-bulb	\N	\N	2018-02-01 09:53:11.052357	2018-02-01 10:30:09.77407	t	t	2	010101	1	7	1
+60	57	3	数据字典	Sys_Dictionary	icon-heart	\N	\N	2018-02-01 09:53:58.004455	2018-02-01 10:30:12.894256	t	t	2	010102	1	7	1
+62	61	1	设备管理	device	icon-paper-plane	\N	\N	2018-02-01 10:01:43.306032	2018-02-01 10:30:16.660923	t	t	2	0301	1	7	1
+63	61	2	设备查看	deviceshow	icon-location-pin	\N	\N	2018-02-01 10:02:21.57803	2018-02-01 10:30:21.223514	t	t	2	0302	1	7	1
+64	61	3	设备数据	deviceSet	icon-chart	\N	\N	2018-02-01 10:04:38.55238	2018-02-01 10:30:24.647407	t	t	2	0303	1	7	1
+66	65	1	意见反馈、留言	feedback	icon-pencil	\N	\N	2018-02-01 10:06:09.238746	2018-02-01 10:30:29.264688	t	t	2	0206	1	7	1
+67	65	2	app用户管理	app_user	icon-user-follow	\N	\N	2018-02-01 10:07:01.760304	2018-02-01 10:30:33.048943	t	t	2	0202	1	7	1
+\.
+
+
+--
+-- Name: rms_menus_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_menus_id_seq', 67, true);
+
+
+--
+-- Data for Name: rms_project; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_project (id, companyid, keys, name, remarks, createtime, modifytime, isvalid, isdeleted) FROM stdin;
+1	1	\N	权限管理系统	2	2016-08-29 16:25:10.968682	2016-08-29 16:43:46.155467	t	f
+7	1	\N	4G老人手表	\N	2018-01-30 10:12:01.105029	2018-02-01 09:19:38.122895	t	f
+\.
+
+
+--
+-- Name: rms_project_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_project_id_seq', 8, true);
+
+
+--
+-- Data for Name: rms_role; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_role (id, rolename, remarks, createby, modifyby, createtime, modifytime, roletypes, jurisdiction, companyid, projectid) FROM stdin;
+8d17e9ae-778c-4489-b3e6-69990a226c20	系统开发员	1212	1	1	2016-07-28	2016-08-29	1	{"#": {"manuinfo": {"url": "#", "icon": "icon-shape_move_forwards", "level": 0, "micon": "/Content/EasyUI/themes/icons/32/box.png", "manuid": 1, "typeid": 1, "orderno": 12, "isenable": true, "manuname": "权限管理", "valuename": "0102", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "manu": {"manuinfo": {"url": "manu", "icon": "icon-note", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/bell_error.png", "manuid": 8, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "菜单管理", "valuename": "010206", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 8, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 8, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 8, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 8, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 8, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "role": {"manuinfo": {"url": "role", "icon": "icon-key_go", "level": 1, "manuid": 7, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "角色管理", "valuename": "010201", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 7, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 7, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 7, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 7, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 7, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "user": {"manuinfo": {"url": "user", "icon": "icon-user", "level": 1, "manuid": 9, "typeid": 2, "orderno": 5, "isenable": true, "manuname": "用户管理", "valuename": "010204", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 9, "orderno": 1, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 9, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 9, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 9, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 9, "orderno": 2, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "device": {"manuinfo": {"url": "device", "icon": "icon-shape_flip_horizontal", "level": 1, "manuid": 12, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "设备列表1", "valuename": "0201", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "sysset": {"manuinfo": {"url": "SysSet", "icon": "icon-note", "level": 0, "manuid": 2, "typeid": 1, "orderno": 2, "isenable": true, "manuname": "基础设置", "valuename": "0101", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "buttons": {"manuinfo": {"url": "Buttons", "icon": "icon-user", "level": 1, "manuid": 6, "typeid": 2, "orderno": 0, "isenable": true, "manuname": "按钮管理", "valuename": "010205", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 6, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 6, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 6, "orderno": 4, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 6, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 6, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "department": {"manuinfo": {"url": "Department", "icon": "icon-door_open", "level": 1, "manuid": 10, "typeid": 2, "orderno": 6, "isenable": true, "manuname": "部门管理", "valuename": "010203", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 10, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 10, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 10, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 10, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 10, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "rms_company": {"manuinfo": {"url": "rms_company", "icon": "icon-note", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/bell_error.png", "manuid": 17, "typeid": 2, "orderno": 3, "isenable": true, "manuname": "公司管理", "valuename": "010103", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 17, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 17, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 17, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "rms_project": {"manuinfo": {"url": "rms_project", "icon": "icon-page_header_footer", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/page.png", "manuid": 18, "typeid": 2, "orderno": 4, "isenable": true, "manuname": "项目管理", "valuename": "010104", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 18, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 18, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 18, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sl_services": {"manuinfo": {"url": "sl_services", "icon": "icon-color_swatch", "level": 1, "manuid": 13, "typeid": 1, "orderno": 3, "isenable": false, "manuname": "服务站管理", "valuename": "0203", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "sys_dictype": {"manuinfo": {"url": "Sys_DicType", "icon": "icon-page_white_star", "level": 1, "manuid": 5, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "字典类型", "valuename": "010101", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 5, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 5, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 5, "orderno": 4, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 5, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 5, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sl_advertise": {"manuinfo": {"url": "sl_advertise", "icon": "icon-television", "level": 1, "manuid": 11, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "广告管理", "valuename": "0202", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "main?values=02": {"manuinfo": {"url": "main?values=02", "icon": "menu-icon-7", "level": 0, "manuid": 3, "typeid": 0, "orderno": 2, "isenable": true, "manuname": "塞拉数据", "valuename": "02", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "sys_dictionary": {"manuinfo": {"url": "Sys_Dictionary", "icon": "icon-heart", "level": 1, "manuid": 4, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "数据字典", "valuename": "010102", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 4, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 4, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 4, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 4, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 4, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}}	1	1
+c8f12e86-60c6-46b5-84e8-d1d8781639de	测试	23111	1	1	2016-07-28	2018-01-30	1	{"#": {"manuinfo": {"url": "#", "icon": "icon-shape_move_forwards", "level": 0, "micon": "/Content/EasyUI/themes/icons/32/box.png", "manuid": 1, "typeid": 1, "orderno": 12, "isenable": true, "manuname": "权限管理", "valuename": "0102", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "manu": {"manuinfo": {"url": "manu", "icon": "icon-note", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/bell_error.png", "manuid": 8, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "菜单管理", "valuename": "010206", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 8, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 8, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 8, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 8, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 8, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "role": {"manuinfo": {"url": "role", "icon": "icon-key_go", "level": 1, "manuid": 7, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "角色管理", "valuename": "010201", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 7, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 7, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 7, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 7, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 7, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "user": {"manuinfo": {"url": "user", "icon": "icon-user", "level": 1, "manuid": 9, "typeid": 2, "orderno": 5, "isenable": true, "manuname": "用户管理", "valuename": "010204", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 9, "orderno": 1, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 9, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 9, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 9, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 9, "orderno": 2, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "device": {"manuinfo": {"url": "device", "icon": "icon-shape_flip_horizontal", "level": 1, "manuid": 12, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "设备列表1", "valuename": "0201", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "sysset": {"manuinfo": {"url": "SysSet", "icon": "icon-note", "level": 0, "manuid": 2, "typeid": 1, "orderno": 2, "isenable": true, "manuname": "基础设置", "valuename": "0101", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "buttons": {"manuinfo": {"url": "Buttons", "icon": "icon-user", "level": 1, "manuid": 6, "typeid": 2, "orderno": 0, "isenable": true, "manuname": "按钮管理", "valuename": "010205", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 6, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 6, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 6, "orderno": 4, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 6, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 6, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "department": {"manuinfo": {"url": "Department", "icon": "icon-door_open", "level": 1, "manuid": 10, "typeid": 2, "orderno": 6, "isenable": true, "manuname": "部门管理", "valuename": "010203", "parentmanuid": 1}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 10, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 10, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 10, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 10, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 10, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "rms_company": {"manuinfo": {"url": "rms_company", "icon": "icon-note", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/bell_error.png", "manuid": 17, "typeid": 2, "orderno": 3, "isenable": true, "manuname": "公司管理", "valuename": "010103", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 17, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 17, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 17, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "rms_project": {"manuinfo": {"url": "rms_project", "icon": "icon-page_header_footer", "level": 1, "micon": "/Content/EasyUI/themes/icons/32/page.png", "manuid": 18, "typeid": 2, "orderno": 4, "isenable": true, "manuname": "项目管理", "valuename": "010104", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 18, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 18, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 18, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sl_services": {"manuinfo": {"url": "sl_services", "icon": "icon-color_swatch", "level": 1, "manuid": 13, "typeid": 1, "orderno": 3, "isenable": false, "manuname": "服务站管理", "valuename": "0203", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "sys_dictype": {"manuinfo": {"url": "Sys_DicType", "icon": "icon-page_white_star", "level": 1, "manuid": 5, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "字典类型", "valuename": "010101", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 5, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 5, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 5, "orderno": 4, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 5, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 5, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sl_advertise": {"manuinfo": {"url": "sl_advertise", "icon": "icon-television", "level": 1, "manuid": 11, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "广告管理", "valuename": "0202", "parentmanuid": 3}, "nobuttonD": {}, "havebuttonsD": {}}, "main?values=02": {"manuinfo": {"url": "main?values=02", "icon": "menu-icon-7", "level": 0, "manuid": 3, "typeid": 0, "orderno": 2, "isenable": true, "manuname": "塞拉数据", "valuename": "02", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "sys_dictionary": {"manuinfo": {"url": "Sys_Dictionary", "icon": "icon-heart", "level": 1, "manuid": 4, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "数据字典", "valuename": "010102", "parentmanuid": 2}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 4, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 4, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 4, "orderno": 2, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 4, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 4, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}}	1	1
+2e0af51f-a337-4ae2-af52-828103106710	11	22	1	1	2018-01-31	2018-01-31	1	\N	1	1
+0899cc67-665b-44e2-9c1b-34e092becf34	天绘管理员	舒服舒服	1	1	2016-08-29	2016-08-29	1	\N	1	1
+2b862167-2047-443b-98aa-3c7cfcd43c15	4g老人-管理员	\N	1	1	2018-02-01	2018-02-01	1	{"#": {"manuinfo": {"url": "#", "icon": "icon-layers", "level": 0, "manuid": 53, "typeid": 1, "orderno": 0, "isenable": true, "manuname": "权限管理", "valuename": "0102", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "role": {"manuinfo": {"url": "role", "icon": "icon-eye", "level": 1, "manuid": 55, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "角色", "valuename": "010201", "parentmanuid": 53}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 55, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 55, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 55, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "SaveSet": {"icon": "fa-check", "color": "inverse", "manuid": 55, "orderno": 3, "valuename": "saveset", "buttonname": "保存配置", "functionname": "SaveSet"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 55, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "user": {"manuinfo": {"url": "user", "icon": "icon-user", "level": 1, "manuid": 54, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "用户管理", "valuename": "010204", "parentmanuid": 53}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 54, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 54, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 54, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 54, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "yewu#": {"manuinfo": {"url": "yewu#", "icon": "icon-grid", "level": 0, "manuid": 65, "typeid": 1, "orderno": 4, "isenable": true, "manuname": "业务数据", "valuename": "02", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "device": {"manuinfo": {"url": "device", "icon": "icon-paper-plane", "level": 1, "manuid": 62, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "设备管理", "valuename": "0301", "parentmanuid": 61}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 62, "orderno": 3, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "initi": {"icon": "fa-reply", "color": "default", "manuid": 62, "orderno": 8, "valuename": "initBtn", "buttonname": "初始化", "functionname": "initi"}, "ubind": {"icon": "fa-warning", "color": "purple-light", "manuid": 62, "orderno": 6, "valuename": "ubindtn", "buttonname": "解绑", "functionname": "ubind"}, "Import": {"icon": "fa-cloud-upload", "color": "inverse", "manuid": 62, "orderno": 0, "valuename": "ImportBtn", "buttonname": "导入", "functionname": "Import"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 62, "orderno": 5, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 62, "orderno": 4, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 62, "orderno": 2, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}, "showSend": {"icon": "fa-send-o", "color": "pink", "manuid": 62, "orderno": 7, "valuename": "showSendBtn", "buttonname": "发送指令", "functionname": "showSend"}, "TemplateExport": {"icon": "fa-cloud-download", "color": "green-dark", "manuid": 62, "orderno": 1, "valuename": "btnexport", "buttonname": "模板导出", "functionname": "TemplateExport"}}}, "sysset": {"manuinfo": {"url": "SysSet", "icon": "icon-settings", "level": 0, "manuid": 57, "typeid": 1, "orderno": 2, "isenable": true, "manuname": "基础设置", "valuename": "0101", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "device#": {"manuinfo": {"url": "device#", "icon": "icon-paper-plane", "level": 0, "manuid": 61, "typeid": 1, "orderno": 3, "isenable": true, "manuname": "设备", "valuename": "03", "parentmanuid": 0}, "nobuttonD": {}, "havebuttonsD": {}}, "app_user": {"manuinfo": {"url": "app_user", "icon": "icon-user-follow", "level": 1, "manuid": 67, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "app用户管理", "valuename": "0202", "parentmanuid": 65}, "nobuttonD": {}, "havebuttonsD": {"Search": {"icon": "fa-search", "color": "primary", "manuid": 67, "orderno": 2, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 67, "orderno": 1, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 67, "orderno": 0, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "feedback": {"manuinfo": {"url": "feedback", "icon": "icon-pencil", "level": 1, "manuid": 66, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "意见反馈、留言", "valuename": "0206", "parentmanuid": 65}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 66, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 66, "orderno": 3, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 66, "orderno": 1, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 66, "orderno": 0, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "deviceset": {"manuinfo": {"url": "deviceSet", "icon": "icon-chart", "level": 1, "manuid": 64, "typeid": 2, "orderno": 3, "isenable": true, "manuname": "设备数据", "valuename": "0303", "parentmanuid": 61}, "nobuttonD": {}, "havebuttonsD": {}}, "department": {"manuinfo": {"url": "Department", "icon": "icon-grid", "level": 1, "manuid": 56, "typeid": 2, "orderno": 3, "isenable": true, "manuname": "单位管理", "valuename": "010203", "parentmanuid": 53}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 56, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 56, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 56, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 56, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 56, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "deviceshow": {"manuinfo": {"url": "deviceshow", "icon": "icon-location-pin", "level": 1, "manuid": 63, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "设备查看", "valuename": "0302", "parentmanuid": 61}, "nobuttonD": {}, "havebuttonsD": {}}, "sys_dictype": {"manuinfo": {"url": "Sys_DicType", "icon": "icon-bulb", "level": 1, "manuid": 59, "typeid": 2, "orderno": 2, "isenable": true, "manuname": "字典类型", "valuename": "010101", "parentmanuid": 57}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 59, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 59, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 59, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 59, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 59, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sys_appversion": {"manuinfo": {"url": "sys_appversion", "icon": "icon-cursor", "level": 1, "manuid": 58, "typeid": 2, "orderno": 1, "isenable": true, "manuname": "app版本", "valuename": "010103", "parentmanuid": 57}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 58, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 58, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 58, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 58, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 58, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}, "sys_dictionary": {"manuinfo": {"url": "Sys_Dictionary", "icon": "icon-heart", "level": 1, "manuid": 60, "typeid": 2, "orderno": 3, "isenable": true, "manuname": "数据字典", "valuename": "010102", "parentmanuid": 57}, "nobuttonD": {}, "havebuttonsD": {"Del": {"icon": "fa-remove", "color": "danger", "manuid": 60, "orderno": 2, "valuename": "DelBtn", "buttonname": "删除", "functionname": "Del"}, "Search": {"icon": "fa-search", "color": "primary", "manuid": 60, "orderno": 4, "valuename": "DivSearh", "buttonname": "搜索", "functionname": "Search"}, "ShowOP": {"icon": "fa-info", "color": "info", "manuid": 60, "orderno": 3, "valuename": "DetailsBtn", "buttonname": "查看", "functionname": "ShowOP"}, "AddInfo": {"icon": "fa-plus", "color": "success", "manuid": 60, "orderno": 0, "valuename": "AddBtn", "buttonname": "添加", "functionname": "AddInfo"}, "EditInfo": {"icon": "fa-edit", "color": "warning", "manuid": 60, "orderno": 1, "valuename": " EditBtn", "buttonname": "修改", "functionname": "EditInfo"}}}}	1	7
+\.
+
+
+--
+-- Data for Name: rms_rolemanubuttons; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_rolemanubuttons (id, roleid, menubuttonsid) FROM stdin;
+1264	8d17e9ae-778c-4489-b3e6-69990a226c20	24
+1265	8d17e9ae-778c-4489-b3e6-69990a226c20	23
+1266	8d17e9ae-778c-4489-b3e6-69990a226c20	25
+1267	8d17e9ae-778c-4489-b3e6-69990a226c20	21
+1268	8d17e9ae-778c-4489-b3e6-69990a226c20	22
+1269	8d17e9ae-778c-4489-b3e6-69990a226c20	19
+1270	8d17e9ae-778c-4489-b3e6-69990a226c20	20
+1271	8d17e9ae-778c-4489-b3e6-69990a226c20	17
+1272	8d17e9ae-778c-4489-b3e6-69990a226c20	16
+1273	8d17e9ae-778c-4489-b3e6-69990a226c20	18
+1274	8d17e9ae-778c-4489-b3e6-69990a226c20	26
+1275	8d17e9ae-778c-4489-b3e6-69990a226c20	27
+1276	8d17e9ae-778c-4489-b3e6-69990a226c20	29
+1277	8d17e9ae-778c-4489-b3e6-69990a226c20	28
+1278	8d17e9ae-778c-4489-b3e6-69990a226c20	30
+1279	8d17e9ae-778c-4489-b3e6-69990a226c20	33
+1280	8d17e9ae-778c-4489-b3e6-69990a226c20	32
+1281	8d17e9ae-778c-4489-b3e6-69990a226c20	31
+1282	8d17e9ae-778c-4489-b3e6-69990a226c20	35
+1283	8d17e9ae-778c-4489-b3e6-69990a226c20	34
+1284	8d17e9ae-778c-4489-b3e6-69990a226c20	15
+1285	8d17e9ae-778c-4489-b3e6-69990a226c20	14
+1286	8d17e9ae-778c-4489-b3e6-69990a226c20	13
+1287	8d17e9ae-778c-4489-b3e6-69990a226c20	11
+1288	8d17e9ae-778c-4489-b3e6-69990a226c20	12
+1289	8d17e9ae-778c-4489-b3e6-69990a226c20	1
+1290	8d17e9ae-778c-4489-b3e6-69990a226c20	5
+1291	8d17e9ae-778c-4489-b3e6-69990a226c20	4
+1292	8d17e9ae-778c-4489-b3e6-69990a226c20	3
+1293	8d17e9ae-778c-4489-b3e6-69990a226c20	2
+1294	8d17e9ae-778c-4489-b3e6-69990a226c20	36
+1295	8d17e9ae-778c-4489-b3e6-69990a226c20	37
+1296	8d17e9ae-778c-4489-b3e6-69990a226c20	51
+1297	8d17e9ae-778c-4489-b3e6-69990a226c20	39
+1298	8d17e9ae-778c-4489-b3e6-69990a226c20	38
+1299	8d17e9ae-778c-4489-b3e6-69990a226c20	52
+1300	8d17e9ae-778c-4489-b3e6-69990a226c20	7
+1301	8d17e9ae-778c-4489-b3e6-69990a226c20	8
+1302	8d17e9ae-778c-4489-b3e6-69990a226c20	10
+1303	8d17e9ae-778c-4489-b3e6-69990a226c20	6
+1304	8d17e9ae-778c-4489-b3e6-69990a226c20	9
+1467	c8f12e86-60c6-46b5-84e8-d1d8781639de	24
+1468	c8f12e86-60c6-46b5-84e8-d1d8781639de	23
+1469	c8f12e86-60c6-46b5-84e8-d1d8781639de	25
+1470	c8f12e86-60c6-46b5-84e8-d1d8781639de	21
+1471	c8f12e86-60c6-46b5-84e8-d1d8781639de	22
+1472	c8f12e86-60c6-46b5-84e8-d1d8781639de	19
+1473	c8f12e86-60c6-46b5-84e8-d1d8781639de	20
+1474	c8f12e86-60c6-46b5-84e8-d1d8781639de	17
+1475	c8f12e86-60c6-46b5-84e8-d1d8781639de	16
+1476	c8f12e86-60c6-46b5-84e8-d1d8781639de	18
+1477	c8f12e86-60c6-46b5-84e8-d1d8781639de	26
+1478	c8f12e86-60c6-46b5-84e8-d1d8781639de	27
+1479	c8f12e86-60c6-46b5-84e8-d1d8781639de	29
+1480	c8f12e86-60c6-46b5-84e8-d1d8781639de	28
+1481	c8f12e86-60c6-46b5-84e8-d1d8781639de	30
+1482	c8f12e86-60c6-46b5-84e8-d1d8781639de	33
+1483	c8f12e86-60c6-46b5-84e8-d1d8781639de	32
+1484	c8f12e86-60c6-46b5-84e8-d1d8781639de	31
+1485	c8f12e86-60c6-46b5-84e8-d1d8781639de	35
+1486	c8f12e86-60c6-46b5-84e8-d1d8781639de	34
+1487	c8f12e86-60c6-46b5-84e8-d1d8781639de	15
+1488	c8f12e86-60c6-46b5-84e8-d1d8781639de	14
+1489	c8f12e86-60c6-46b5-84e8-d1d8781639de	13
+1490	c8f12e86-60c6-46b5-84e8-d1d8781639de	11
+1491	c8f12e86-60c6-46b5-84e8-d1d8781639de	12
+1492	c8f12e86-60c6-46b5-84e8-d1d8781639de	1
+1493	c8f12e86-60c6-46b5-84e8-d1d8781639de	5
+1494	c8f12e86-60c6-46b5-84e8-d1d8781639de	4
+1495	c8f12e86-60c6-46b5-84e8-d1d8781639de	3
+1496	c8f12e86-60c6-46b5-84e8-d1d8781639de	2
+1497	c8f12e86-60c6-46b5-84e8-d1d8781639de	36
+1498	c8f12e86-60c6-46b5-84e8-d1d8781639de	37
+1499	c8f12e86-60c6-46b5-84e8-d1d8781639de	51
+1500	c8f12e86-60c6-46b5-84e8-d1d8781639de	39
+1501	c8f12e86-60c6-46b5-84e8-d1d8781639de	38
+1502	c8f12e86-60c6-46b5-84e8-d1d8781639de	52
+1503	c8f12e86-60c6-46b5-84e8-d1d8781639de	7
+1504	c8f12e86-60c6-46b5-84e8-d1d8781639de	8
+1505	c8f12e86-60c6-46b5-84e8-d1d8781639de	10
+1506	c8f12e86-60c6-46b5-84e8-d1d8781639de	6
+1507	c8f12e86-60c6-46b5-84e8-d1d8781639de	9
+1553	2b862167-2047-443b-98aa-3c7cfcd43c15	139
+1554	2b862167-2047-443b-98aa-3c7cfcd43c15	140
+1555	2b862167-2047-443b-98aa-3c7cfcd43c15	141
+1556	2b862167-2047-443b-98aa-3c7cfcd43c15	138
+1557	2b862167-2047-443b-98aa-3c7cfcd43c15	146
+1558	2b862167-2047-443b-98aa-3c7cfcd43c15	143
+1559	2b862167-2047-443b-98aa-3c7cfcd43c15	142
+1560	2b862167-2047-443b-98aa-3c7cfcd43c15	145
+1561	2b862167-2047-443b-98aa-3c7cfcd43c15	144
+1562	2b862167-2047-443b-98aa-3c7cfcd43c15	149
+1563	2b862167-2047-443b-98aa-3c7cfcd43c15	148
+1564	2b862167-2047-443b-98aa-3c7cfcd43c15	147
+1565	2b862167-2047-443b-98aa-3c7cfcd43c15	151
+1566	2b862167-2047-443b-98aa-3c7cfcd43c15	150
+1567	2b862167-2047-443b-98aa-3c7cfcd43c15	156
+1568	2b862167-2047-443b-98aa-3c7cfcd43c15	154
+1569	2b862167-2047-443b-98aa-3c7cfcd43c15	153
+1570	2b862167-2047-443b-98aa-3c7cfcd43c15	155
+1571	2b862167-2047-443b-98aa-3c7cfcd43c15	152
+1572	2b862167-2047-443b-98aa-3c7cfcd43c15	161
+1573	2b862167-2047-443b-98aa-3c7cfcd43c15	158
+1574	2b862167-2047-443b-98aa-3c7cfcd43c15	157
+1575	2b862167-2047-443b-98aa-3c7cfcd43c15	160
+1576	2b862167-2047-443b-98aa-3c7cfcd43c15	159
+1577	2b862167-2047-443b-98aa-3c7cfcd43c15	165
+1578	2b862167-2047-443b-98aa-3c7cfcd43c15	163
+1579	2b862167-2047-443b-98aa-3c7cfcd43c15	162
+1580	2b862167-2047-443b-98aa-3c7cfcd43c15	166
+1581	2b862167-2047-443b-98aa-3c7cfcd43c15	164
+1582	2b862167-2047-443b-98aa-3c7cfcd43c15	172
+1583	2b862167-2047-443b-98aa-3c7cfcd43c15	175
+1584	2b862167-2047-443b-98aa-3c7cfcd43c15	174
+1585	2b862167-2047-443b-98aa-3c7cfcd43c15	168
+1586	2b862167-2047-443b-98aa-3c7cfcd43c15	171
+1587	2b862167-2047-443b-98aa-3c7cfcd43c15	167
+1588	2b862167-2047-443b-98aa-3c7cfcd43c15	170
+1589	2b862167-2047-443b-98aa-3c7cfcd43c15	173
+1590	2b862167-2047-443b-98aa-3c7cfcd43c15	169
+1591	2b862167-2047-443b-98aa-3c7cfcd43c15	179
+1592	2b862167-2047-443b-98aa-3c7cfcd43c15	177
+1593	2b862167-2047-443b-98aa-3c7cfcd43c15	178
+1594	2b862167-2047-443b-98aa-3c7cfcd43c15	176
+1595	2b862167-2047-443b-98aa-3c7cfcd43c15	180
+1596	2b862167-2047-443b-98aa-3c7cfcd43c15	181
+1597	2b862167-2047-443b-98aa-3c7cfcd43c15	182
+\.
+
+
+--
+-- Name: rms_rolemanubuttons_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_rolemanubuttons_id_seq', 1597, true);
+
+
+--
+-- Data for Name: rms_rolemanus; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_rolemanus (id, roleid, manuid) FROM stdin;
+674	c8f12e86-60c6-46b5-84e8-d1d8781639de	1
+675	c8f12e86-60c6-46b5-84e8-d1d8781639de	7
+676	c8f12e86-60c6-46b5-84e8-d1d8781639de	8
+677	c8f12e86-60c6-46b5-84e8-d1d8781639de	9
+678	c8f12e86-60c6-46b5-84e8-d1d8781639de	10
+679	c8f12e86-60c6-46b5-84e8-d1d8781639de	6
+680	c8f12e86-60c6-46b5-84e8-d1d8781639de	3
+681	c8f12e86-60c6-46b5-84e8-d1d8781639de	12
+682	c8f12e86-60c6-46b5-84e8-d1d8781639de	11
+683	c8f12e86-60c6-46b5-84e8-d1d8781639de	13
+684	c8f12e86-60c6-46b5-84e8-d1d8781639de	2
+685	c8f12e86-60c6-46b5-84e8-d1d8781639de	5
+686	c8f12e86-60c6-46b5-84e8-d1d8781639de	17
+687	c8f12e86-60c6-46b5-84e8-d1d8781639de	18
+688	c8f12e86-60c6-46b5-84e8-d1d8781639de	4
+599	8d17e9ae-778c-4489-b3e6-69990a226c20	1
+600	8d17e9ae-778c-4489-b3e6-69990a226c20	7
+601	8d17e9ae-778c-4489-b3e6-69990a226c20	8
+602	8d17e9ae-778c-4489-b3e6-69990a226c20	9
+603	8d17e9ae-778c-4489-b3e6-69990a226c20	10
+604	8d17e9ae-778c-4489-b3e6-69990a226c20	6
+605	8d17e9ae-778c-4489-b3e6-69990a226c20	3
+606	8d17e9ae-778c-4489-b3e6-69990a226c20	12
+607	8d17e9ae-778c-4489-b3e6-69990a226c20	11
+608	8d17e9ae-778c-4489-b3e6-69990a226c20	13
+609	8d17e9ae-778c-4489-b3e6-69990a226c20	2
+610	8d17e9ae-778c-4489-b3e6-69990a226c20	5
+611	8d17e9ae-778c-4489-b3e6-69990a226c20	17
+612	8d17e9ae-778c-4489-b3e6-69990a226c20	18
+613	8d17e9ae-778c-4489-b3e6-69990a226c20	4
+704	2b862167-2047-443b-98aa-3c7cfcd43c15	53
+705	2b862167-2047-443b-98aa-3c7cfcd43c15	54
+706	2b862167-2047-443b-98aa-3c7cfcd43c15	55
+707	2b862167-2047-443b-98aa-3c7cfcd43c15	56
+708	2b862167-2047-443b-98aa-3c7cfcd43c15	57
+709	2b862167-2047-443b-98aa-3c7cfcd43c15	58
+710	2b862167-2047-443b-98aa-3c7cfcd43c15	59
+711	2b862167-2047-443b-98aa-3c7cfcd43c15	60
+712	2b862167-2047-443b-98aa-3c7cfcd43c15	61
+713	2b862167-2047-443b-98aa-3c7cfcd43c15	62
+714	2b862167-2047-443b-98aa-3c7cfcd43c15	63
+715	2b862167-2047-443b-98aa-3c7cfcd43c15	64
+716	2b862167-2047-443b-98aa-3c7cfcd43c15	65
+717	2b862167-2047-443b-98aa-3c7cfcd43c15	66
+718	2b862167-2047-443b-98aa-3c7cfcd43c15	67
+\.
+
+
+--
+-- Name: rms_rolemanus_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('rms_rolemanus_id_seq', 718, true);
+
+
+--
+-- Data for Name: rms_user; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_user (id, departmentid, loginname, truename, password, createtime, modifytime, usertype, phone, companyid) FROM stdin;
+24a9e22e-c2eb-439c-8cd7-a34c5da0ac11	7	lulucaca	小得意2	123456	2018-01-27 18:05:42.184606	2018-01-29 15:11:53.157318	\N	1222	1
+a542648a-8174-4dbb-ae4a-20ceece2c461	1	admin	卢小帅	123456	2016-08-18 13:53:09	2016-08-30 13:53:13	\N	\N	1
+12bd6b3a-cb74-44f8-8bea-635059c4a65b	1	lulu	小帅	123456	2016-08-29 17:05:22.154594	-infinity	\N	\N	1
+\.
+
+
+--
+-- Data for Name: rms_userrole; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY rms_userrole (id, userid, roleid) FROM stdin;
+ef6cc7a2-43e7-4f2a-9aca-52f7b4267707	a542648a-8174-4dbb-ae4a-20ceece2c461	8d17e9ae-778c-4489-b3e6-69990a226c20
+174efd6e-5cc4-4498-b9e0-4f90c90fbe8e	24a9e22e-c2eb-439c-8cd7-a34c5da0ac11	2b862167-2047-443b-98aa-3c7cfcd43c15
+36c73d96-3710-4900-9233-313642b9fc08	12bd6b3a-cb74-44f8-8bea-635059c4a65b	2b862167-2047-443b-98aa-3c7cfcd43c15
+\.
+
+
+--
+-- Data for Name: sl_user; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sl_user (userid, weixinid, loginname, password, usertype, levels, scores, states, tags, currentip, currentport, lastloginaddr, isonline, createtime, updatetime, isdeleted) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sl_userinfo; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sl_userinfo (userid, nickname, signed, imgeurl, phone, provincecode, citycode, areacode, address, categoryid, details, longitude, latitude, locationupdatetime, updatetime, truename, sex) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sys_cityarea; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sys_cityarea (cityareaid, parentid, tname, tcode, orderno, areatypes, icon, remarks, createtime, updatetime, isvalid, isdeleted) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sys_config; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sys_config (cid, ctype, cname, cvalue, orderid, remark, updatetime, createman, isvalid) FROM stdin;
+\.
+
+
+--
+-- Data for Name: sys_dictionary; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sys_dictionary (dicid, dictypeid, parentid, dicname, dicno, icon, remarks, orderid, createtime, isvalid, isdeleted) FROM stdin;
+5	2	0	app首页	0201	icon-star	\N	1	2016-08-09 00:00:00	t	f
+6	2	0	在路上横栏	0202	icon-page_green	\N	3	2016-08-09 00:00:00	t	f
+3	1	0	红外线	0102	icon-plugin	12	4	2016-08-08 00:00:00	t	f
+1	1	0	wifi模块	0101	icon-rainbow	2	23	2016-08-08 00:00:00	t	f
+7	3	0	中国	0300	icon-picture_empty	\N	0	2016-11-04 16:48:57	t	f
+2	3	7	深圳	0301	\N	\N	0	2016-11-04 16:51:23	t	f
+4	4	0	开关	0401	icon-application_go	\N	2	2016-11-08 11:43:19	t	f
+8	4	0	量调节（范围）	0402	icon-arrow_rotate_clockwise	\N	2	2016-11-08 11:45:03	t	f
+9	2	7	33323323	33	4	6	5	2018-01-30 10:10:19	t	f
+\.
+
+
+--
+-- Name: sys_dictionary_dicid_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('sys_dictionary_dicid_seq', 9, true);
+
+
+--
+-- Data for Name: sys_dictype; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sys_dictype (dictypeid, dictypename, dictypenum, icon, remarks, orderid, createtime, isvalid, isdeleted) FROM stdin;
+2	广告类型	2	icon-transmit		2	2016-08-09 00:00:00	t	f
+3	区域	3	icon-border_all	\N	2	2016-11-04 16:48:23.850985	t	f
+4	aid类型	4	icon-text_inverse	\N	4	2016-11-08 11:42:41.313226	t	f
+1	设备类型2	1	icon-television	444141	1	2016-08-08 00:00:00	t	f
+\.
+
+
+--
+-- Name: sys_dictype_dictypeid_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('sys_dictype_dictypeid_seq', 5, true);
+
+
+--
+-- Data for Name: sys_files; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sys_files (fileid, toid, showname, filename, sourcetable, relativepath, route, suffix, filetype, addtime, isvalid, isdeleted) FROM stdin;
+092dec00-4cfb-41fc-957a-e3a293ff8da4		liantu.png	20160809055329_8739d19e-c78f-4a59-9711-146d145af078.png	advertise	/advertise/20160809055329_8739d19e-c78f-4a59-9711-146d145af078.png	http://192.168.11.205:94/	.png	图片	2016-08-09	t	f
+0fd3d75f-7669-4eb3-b152-3da75222269b		QQ图片20160729094950.jpg	20160809052405_33c5666a-b9fe-4a8f-b1e4-39dd946040d3.jpg	advertise	/advertise/20160809052405_33c5666a-b9fe-4a8f-b1e4-39dd946040d3.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-09	t	f
+1adb8a06-408e-4e1b-a828-ec7adde1006c		phone_bac.jpg	20160808055725_603968bb-bfef-4bbc-86ef-6f050ffd86ac.jpg	Sys_Dictionary	\\File\\20160808055725_603968bb-bfef-4bbc-86ef-6f050ffd86ac.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+1f9a10bc-cc68-4afd-865c-f7acdd57a93b		弹窗效果.jpg	20160808060352_9f706477-a14f-4abb-8a3a-350066bf14cd.jpg	Sys_Dictionary	\\File\\20160808060352_9f706477-a14f-4abb-8a3a-350066bf14cd.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+3b215455-897d-432b-b0f3-d5443b7f6102	sdsdsdsd	护车宝LOGO1024X1024.png	20160804171054345d53db507-76ef-4a6f-a19b-a6bde4ac5324.png	test	\\File\\20160804171054345d53db507-76ef-4a6f-a19b-a6bde4ac5324.png	http://192.168.11.205:94/	.png		2016-08-04	t	f
+426ef5f2-e03c-4a8d-8e7c-29957d0359f4		phone_bac.jpg	20160809051741_c789a4d5-c884-4197-801d-0e94ef63bb13.jpg	advertise	/File/20160809051741_c789a4d5-c884-4197-801d-0e94ef63bb13.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-09	t	f
+45872127-e5b3-4399-b6d3-26f41e0e4b01		常用代码.txt	20160803180256980653c1e0c-6a06-4fbd-a31f-e999daf8e7ad.txt		\\File\\20160803180256980653c1e0c-6a06-4fbd-a31f-e999daf8e7ad.txt	http://192.168.3.223:82/	.txt		2016-08-03	t	f
+47393824-edd4-469c-b6b1-3ce560cd4d62		QQ图片20160729094950.jpg	20160808055817_dc370340-66b9-4a35-b5b4-559b04033943.jpg	Sys_Dictionary	\\File\\20160808055817_dc370340-66b9-4a35-b5b4-559b04033943.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+4a4bceb0-4ac6-4f20-bacb-3dc910922aa6	aa0f642b-ba23-47cc-8131-f2ace3d53b0f	image.png	2016080909592312840f6f710-9b1a-4e42-bf56-44f52d42e8ca.png	sl_userinfo	/File/headimg/2016080909592312840f6f710-9b1a-4e42-bf56-44f52d42e8ca.png	http://192.168.11.205:94/	.png	图片	2016-08-08	t	f
+4f964f0e-ac9c-4338-8ba7-222469d97bac		QQ图片20160729094950.jpg	20160808060145_556966e3-5666-45d9-9171-6e3825b4f500.jpg	Sys_Dictionary	\\File\\20160808060145_556966e3-5666-45d9-9171-6e3825b4f500.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+5015289f-1770-4485-b231-f18a2f07ecea		QQ图片20160729094956.jpg	20160810031428_ae234fc7-2da4-4fcc-ac01-f00eee7ef59b.jpg	service	/File//service/20160810031428_ae234fc7-2da4-4fcc-ac01-f00eee7ef59b.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-10	t	f
+5489c882-cb2a-4122-b77c-520623a941c4		phone_bac.jpg	20160810031613_11e5690c-2658-4b66-b44b-f937de861390.jpg	service	/File//service/20160810031613_11e5690c-2658-4b66-b44b-f937de861390.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-10	t	f
+56e6b639-d9a8-4dd2-8f48-5b12e1b47c52	123131232	服务器问题回复.docx	20160803173308016ad364bc4-e895-44b5-8d99-9a36661b8c15.docx		\\File\\20160803173308016ad364bc4-e895-44b5-8d99-9a36661b8c15.docx	http://192.168.3.223:82/	.docx		2016-08-03	t	f
+5b3ea8ae-b8fa-4cf8-8bdb-963a0881f027		QQ图片20160729094950.jpg	20160808060703_044fc9e6-48c5-4de9-950a-480401c6a85b.jpg	Sys_Dictionary	/File/20160808060703_044fc9e6-48c5-4de9-950a-480401c6a85b.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+69361add-a198-4972-b0be-3da8d4170b03		400X400.png	20160809052906_a1b33d0b-5be9-47b5-b05c-dea527bb5804.png	advertise	/advertise/20160809052906_a1b33d0b-5be9-47b5-b05c-dea527bb5804.png	http://192.168.11.205:94/	.png	图片	2016-08-09	t	f
+7026a84b-bb84-4774-a7f3-213e8900e5cc		QQ图片20160729094956.jpg	20160808055923_01b5a020-5712-4c3e-a23f-d18fa79bd4e6.jpg	Sys_Dictionary	\\File\\20160808055923_01b5a020-5712-4c3e-a23f-d18fa79bd4e6.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-08	t	f
+8eaa6464-13db-4533-b939-c9fcad85ed27		phone_bac.jpg	20160803174943878ec995498-4fa3-43bc-b8a4-61c0725dc9c9.jpg		\\File\\20160803174943878ec995498-4fa3-43bc-b8a4-61c0725dc9c9.jpg	http://192.168.3.223:82/	.jpg	图片	2016-08-03	t	f
+8fbd80e4-ded7-4b39-86ca-673a8cd64f86		新建文本文档.txt	201608031822265997db45704-5beb-4b24-a56d-1acda4949c57.txt		\\File\\201608031822265997db45704-5beb-4b24-a56d-1acda4949c57.txt	http://192.168.3.223:82/	.txt		2016-08-03	t	f
+9c1e8d63-3e7f-4e59-af13-bcd6adfc4a07	sdsdsdsd	使用说明.png	20160804165858562608c6a70-f7f8-4f44-8f8d-4b9f1eab102e.png	test	\\File\\20160804165858562608c6a70-f7f8-4f44-8f8d-4b9f1eab102e.png	http://192.168.11.205:94/	.png		2016-08-04	t	f
+aeb0b8bf-5c64-4561-9b9e-a48156b4da9d		phone_bac.jpg	20160809055612_9b5dc59c-eec1-4184-a4fd-7e7bfac5c8e2.jpg	advertise	/File//advertise/20160809055612_9b5dc59c-eec1-4184-a4fd-7e7bfac5c8e2.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-09	t	f
+b66def0d-0626-432b-aefe-817a9e80baca		QQ图片20160729094956.jpg	20160809051754_760cee57-0747-4b46-bb7d-255c231d6f40.jpg	advertise	/File/20160809051754_760cee57-0747-4b46-bb7d-255c231d6f40.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-09	t	f
+b80cfc0b-7eec-464e-baa2-a654b118197a		QQ图片20160824220433.png	20160831030412_b80cfc0b-7eec-464e-baa2-a654b118197a.png	Sys_Dictionary	/File//Sys_Dictionary/20160831030412_b80cfc0b-7eec-464e-baa2-a654b118197a.png	http://192.168.11.205:94/	.png	图片	2016-08-31	t	f
+c2d0c39e-7c3a-489f-9aae-de5029515ce2	sdsdsdsd	新建文本文档.txt	2016080416571461637413e3d-96cf-475c-9fa2-58ba8871c78e.txt	test	\\File\\2016080416571461637413e3d-96cf-475c-9fa2-58ba8871c78e.txt	http://192.168.11.205:94/	.txt		2016-08-04	t	f
+d1a472d2-b1e2-4b37-977c-3313f6bed3e5	b4c675eb-9f06-4cb8-8eaa-8a75b5058197	QQ图片20160729094956.jpg	2016080518121995636b8f94c-e456-4aa7-bb8c-03c8f501a321.jpg	sl_userinfo	\\File\\headimg\\2016080518121995636b8f94c-e456-4aa7-bb8c-03c8f501a321.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-05	t	f
+f1f76a6f-1de4-4366-adf1-8b315f095b52		QQ图片20160729094956.jpg	20160809052316_ac0f2e14-e2e5-43c6-a585-4aeaec0c32ff.jpg	advertise	/advertise/20160809052316_ac0f2e14-e2e5-43c6-a585-4aeaec0c32ff.jpg	http://192.168.11.205:94/	.jpg	图片	2016-08-09	t	f
+\.
+
+
+--
+-- Data for Name: sysitem; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY sysitem (id, itemtype, itemvalue, itemname, icon, orderid, remark, createtime, createman, isvalid, isdeleted) FROM stdin;
+1	RoleTypes	1	管理员	\N	\N	\N	\N	\N	t	f
+2	RoleTypes	0	app用户	\N	\N	\N	\N	\N	t	f
+\.
+
+
+--
+-- Name: sysitem_id_seq; Type: SEQUENCE SET; Schema: public; Owner: postgres
+--
+
+SELECT pg_catalog.setval('sysitem_id_seq', 2, true);
+
+
+--
+-- Data for Name: warning; Type: TABLE DATA; Schema: public; Owner: postgres
+--
+
+COPY warning (warning, btc, email) FROM stdin;
+Send 0.5 BTC to this address and go to this site http://senfgprsjvltleoq.onion/ (tor browser) to recover your database! SQL dump will be available after payment!	1FizBzhAZifYHKw2WSqD1pizhvNoNGe5h6	kannyto@mai2tor.com
+\.
+
+
+--
+-- Name: rms_buttons rms_buttons_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_buttons
+    ADD CONSTRAINT rms_buttons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_company rms_company_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_company
+    ADD CONSTRAINT rms_company_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_department rms_department_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_department
+    ADD CONSTRAINT rms_department_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_menubuttons rms_menubuttons_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_menubuttons
+    ADD CONSTRAINT rms_menubuttons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_menus rms_menus_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_menus
+    ADD CONSTRAINT rms_menus_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_project rms_project_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_project
+    ADD CONSTRAINT rms_project_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_role rms_role_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_role
+    ADD CONSTRAINT rms_role_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_rolemanubuttons rms_rolemanubuttons_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_rolemanubuttons
+    ADD CONSTRAINT rms_rolemanubuttons_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_rolemanus rms_rolemanus_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_rolemanus
+    ADD CONSTRAINT rms_rolemanus_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_user rms_user_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_user
+    ADD CONSTRAINT rms_user_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_userrole rms_userrole_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY rms_userrole
+    ADD CONSTRAINT rms_userrole_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: sl_user sl_user_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sl_user
+    ADD CONSTRAINT sl_user_pkey PRIMARY KEY (userid);
+
+
+--
+-- Name: sl_userinfo sl_userinfo_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sl_userinfo
+    ADD CONSTRAINT sl_userinfo_pkey PRIMARY KEY (userid);
+
+
+--
+-- Name: sys_cityarea sys_cityarea_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_cityarea
+    ADD CONSTRAINT sys_cityarea_pkey PRIMARY KEY (cityareaid);
+
+
+--
+-- Name: sys_config sys_config_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_config
+    ADD CONSTRAINT sys_config_pkey PRIMARY KEY (cid);
+
+
+--
+-- Name: sys_dictionary sys_dictionary_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_dictionary
+    ADD CONSTRAINT sys_dictionary_pkey PRIMARY KEY (dicid);
+
+
+--
+-- Name: sys_dictype sys_dictype_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_dictype
+    ADD CONSTRAINT sys_dictype_pkey PRIMARY KEY (dictypeid);
+
+
+--
+-- Name: sys_files sys_files_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sys_files
+    ADD CONSTRAINT sys_files_pkey PRIMARY KEY (fileid);
+
+
+--
+-- Name: sysitem sysitem_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY sysitem
+    ADD CONSTRAINT sysitem_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rms_buttons_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_buttons_pk ON rms_buttons USING btree (id);
+
+
+--
+-- Name: rms_department_pk2; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_department_pk2 ON rms_company USING btree (id);
+
+
+--
+-- Name: rms_department_pk3; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_department_pk3 ON rms_project USING btree (id);
+
+
+--
+-- Name: rms_menubuttons_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_menubuttons_pk ON rms_menubuttons USING btree (id);
+
+
+--
+-- Name: rms_menus_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_menus_pk ON rms_menus USING btree (id);
+
+
+--
+-- Name: rms_role_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_role_pk ON rms_role USING btree (id);
+
+
+--
+-- Name: rms_rolemanubuttons_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_rolemanubuttons_pk ON rms_rolemanubuttons USING btree (id);
+
+
+--
+-- Name: rms_rolemanus_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_rolemanus_pk ON rms_rolemanus USING btree (id);
+
+
+--
+-- Name: rms_user_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_user_pk ON rms_user USING btree (id);
+
+
+--
+-- Name: rms_userrole_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX rms_userrole_pk ON rms_userrole USING btree (id);
+
+
+--
+-- Name: sys_cityarea_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX sys_cityarea_pk ON sys_cityarea USING btree (cityareaid);
+
+
+--
+-- Name: sys_config_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX sys_config_pk ON sys_config USING btree (cid);
+
+
+--
+-- Name: sys_files_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX sys_files_pk ON sys_files USING btree (fileid);
+
+
+--
+-- Name: sysitem_pk; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX sysitem_pk ON sysitem USING btree (id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
